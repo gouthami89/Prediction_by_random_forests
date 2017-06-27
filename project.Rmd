@@ -1,0 +1,93 @@
+---
+title: "Practical machine learning course project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+## Goal
+
+The goal of the project is to predict the manner in which they did the exercise. This is given by the "classe" variable in the training set. 
+
+# Loading data
+
+```{r load, echo = TRUE}
+training <- read.csv("pml-training.csv", header = TRUE);
+testing <- read.csv("pml-testing.csv", header = TRUE);
+```
+
+# Preprocessing
+
+## Partitioning training set
+
+```{r preproc, echo=TRUE}
+library(caret)
+library(e1071)
+
+set.seed(123456)
+train_index <- createDataPartition(training$classe, p = 0.8, list = FALSE)
+train_set <- training[train_index, ]
+validate <- training[-train_index, ]
+
+valid_index <- createDataPartition(validate$classe, p = 0.8, list = FALSE)
+validate_test <- validate[-valid_index,]
+validate <- validate[valid_index,]
+```
+
+## Removal of non-useful predictors
+
+Predictors which do not have too many unique values, or have too many NA values or are only descriptive statistics are eliminated.
+
+```{r select, echo = TRUE}
+zcol <- nearZeroVar(train_set)
+train_set <- train_set[, -zcol]
+
+cnt <- sapply(train_set, function(x) { sum(!(is.na(x) | x == ""))})
+
+nullcol <- names(cnt[cnt < 0.7 * length(train_set$classe)])
+descriptcol <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")
+excludecols <- c(descriptcol, nullcol)
+train_set <- train_set[, !names(train_set) %in% excludecols]
+```
+
+# Prediction model
+
+
+```{r trainm, echo = TRUE, cache = TRUE}
+
+m1 <- train(classe ~ ., data = train_set, method = "rf")
+p1 <- predict(m1, validate)
+
+confusionMatrix(p1, validate$classe)
+```
+
+## out-off sample error
+```{r error, echo = TRUE, cache = TRUE}
+p2 <- predict(m1, validate_test)
+accuracy <- sum(p1 == validate_test$classe)/length(p1)
+```
+
+# Results & Conclusion 
+
+As can be seen, the model has an accuracy of 99.27% and it has sensitivity and specificity values close to 1. Also, the out-of-sample error comes out to be 99.23%. Therefore we accept the model.
+
+In order to get an idea of the important variables, we make use of the "varImp" function.
+
+## Relevant variables
+
+```{r relevant, echo = TRUE}
+imp <- varImp(m1)
+plot(imp, main = "Top 10 relevant variables", top = 10)
+```
+
+
+# Testing the prediction model on test data set
+``{r test, echo = TRUE}
+test <- predict(m1, testing)
+```
